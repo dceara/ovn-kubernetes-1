@@ -1127,14 +1127,19 @@ var _ = ginkgo.Describe("Gateway Init Operations", func() {
 			err = f.Start()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
+			expectedClusterLBGroup := &nbdb.LoadBalancerGroup{
+				Name: types.ClusterLBGroupName,
+				UUID: types.ClusterLBGroupName + "-UUID",
+			}
 			expectedOVNClusterRouter := &nbdb.LogicalRouter{
 				UUID: types.OVNClusterRouter + "-UUID",
 				Name: types.OVNClusterRouter,
 			}
 			expectedNodeSwitch := &nbdb.LogicalSwitch{
-				UUID:        node1.Name + "-UUID",
-				Name:        node1.Name,
-				OtherConfig: map[string]string{"subnet": node1.NodeSubnet},
+				UUID:              node1.Name + "-UUID",
+				Name:              node1.Name,
+				OtherConfig:       map[string]string{"subnet": node1.NodeSubnet},
+				LoadBalancerGroup: []string{expectedClusterLBGroup.UUID},
 			}
 			expectedClusterRouterPortGroup := &nbdb.PortGroup{
 				UUID: types.ClusterRtrPortGroupName + "-UUID",
@@ -1156,13 +1161,11 @@ var _ = ginkgo.Describe("Gateway Init Operations", func() {
 						UUID: types.OVNJoinSwitch + "-UUID",
 						Name: types.OVNJoinSwitch,
 					},
-					&nbdb.LogicalSwitch{
-						UUID: node1.Name + "-UUID",
-						Name: node1.Name,
-					},
+					expectedNodeSwitch,
 					expectedOVNClusterRouter,
 					expectedClusterRouterPortGroup,
 					expectedClusterPortGroup,
+					expectedClusterLBGroup,
 				},
 			}
 			libovsdbOvnNBClient, libovsdbOvnSBClient, err := libovsdbtest.NewNBSBTestHarness(dbSetup, stopChan)
@@ -1455,7 +1458,15 @@ func TestController_allocateNodeSubnets(t *testing.T) {
 				t.Fatalf("Error starting master watch factory: %v", err)
 			}
 
-			dbSetup := libovsdbtest.TestSetup{}
+			expectedClusterLBGroup := &nbdb.LoadBalancerGroup{
+				Name: types.ClusterLBGroupName,
+				UUID: types.ClusterLBGroupName + "-UUID",
+			}
+			dbSetup := libovsdbtest.TestSetup{
+				NBData: []libovsdbtest.TestData{
+					expectedClusterLBGroup,
+				},
+			}
 			libovsdbOvnNBClient, libovsdbOvnSBClient, err := libovsdbtest.NewNBSBTestHarness(dbSetup, stopChan)
 			if err != nil {
 				t.Fatalf("Error creating libovsdb test harness %v", err)

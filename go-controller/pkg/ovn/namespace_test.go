@@ -268,6 +268,10 @@ var _ = ginkgo.Describe("OVN Namespace Operations", func() {
 						"name": ovntypes.ClusterPortGroupName,
 					},
 				}
+				expectedClusterLBGroup := &nbdb.LoadBalancerGroup{
+					Name: ovntypes.ClusterLBGroupName,
+					UUID: ovntypes.ClusterLBGroupName + "-UUID",
+				}
 				fakeOvn.dbSetup = libovsdbtest.TestSetup{
 					NBData: []libovsdbtest.TestData{
 						&nbdb.LogicalSwitch{
@@ -278,6 +282,7 @@ var _ = ginkgo.Describe("OVN Namespace Operations", func() {
 						expectedNodeSwitch,
 						expectedClusterRouterPortGroup,
 						expectedClusterPortGroup,
+						expectedClusterLBGroup,
 					},
 				}
 				fakeOvn.init()
@@ -295,6 +300,9 @@ var _ = ginkgo.Describe("OVN Namespace Operations", func() {
 
 				// Add subnet to otherconfig for node
 				expectedNodeSwitch.OtherConfig = map[string]string{"subnet": node1.NodeSubnet}
+
+				// Add cluster LB Group to node switch.
+				expectedNodeSwitch.LoadBalancerGroup = []string{expectedClusterLBGroup.UUID}
 
 				expectedDatabaseState = addNodeLogicalFlows(expectedDatabaseState, expectedOVNClusterRouter, expectedNodeSwitch, expectedClusterRouterPortGroup, expectedClusterPortGroup, fexec, &node1, clusterCIDR, config.IPv6Mode)
 

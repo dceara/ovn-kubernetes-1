@@ -21,6 +21,8 @@ func getUUID(model model.Model) string {
 		return t.UUID
 	case *nbdb.LoadBalancer:
 		return t.UUID
+	case *nbdb.LoadBalancerGroup:
+		return t.UUID
 	case *nbdb.LogicalRouter:
 		return t.UUID
 	case *nbdb.LogicalRouterPolicy:
@@ -57,6 +59,8 @@ func setUUID(model model.Model, uuid string) {
 	case *nbdb.GatewayChassis:
 		t.UUID = uuid
 	case *nbdb.LoadBalancer:
+		t.UUID = uuid
+	case *nbdb.LoadBalancerGroup:
 		t.UUID = uuid
 	case *nbdb.LogicalRouter:
 		t.UUID = uuid
@@ -107,6 +111,10 @@ func copyIndexes(model model.Model) model.Model {
 		}
 	case *nbdb.LoadBalancer:
 		return &nbdb.LoadBalancer{
+			UUID: t.UUID,
+		}
+	case *nbdb.LoadBalancerGroup:
+		return &nbdb.LoadBalancerGroup{
 			UUID: t.UUID,
 		}
 	case *nbdb.LogicalRouter:
@@ -171,6 +179,8 @@ func getListFromModel(model model.Model) interface{} {
 		return &[]nbdb.GatewayChassis{}
 	case *nbdb.LoadBalancer:
 		return &[]nbdb.LoadBalancer{}
+	case *nbdb.LoadBalancerGroup:
+		return &[]nbdb.LoadBalancerGroup{}
 	case *nbdb.LogicalRouter:
 		return &[]nbdb.LogicalRouter{}
 	case *nbdb.LogicalRouterPolicy:
