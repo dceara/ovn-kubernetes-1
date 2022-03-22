@@ -322,6 +322,13 @@ func (oc *Controller) addRoutesGatewayIP(pod *kapi.Pod, podAnnotation *util.PodA
 }
 
 func (oc *Controller) addLogicalPort(pod *kapi.Pod) (err error) {
+	durationMap := map[string]time.Duration{}
+	addLogicalPortTime := time.Now()
+	defer func() {
+		durationMap["addLogicalPort"] = time.Since(addLogicalPortTime)
+		klog.Infof("SCALE TIMING addLogicalPort [%s/%s/%s]: %+v", pod.Namespace, pod.Name, pod.UID, durationMap)
+	}()
+
 	// If a node does node have an assigned hostsubnet don't wait for the logical switch to appear
 	if oc.lsManager.IsNonHostSubnetSwitch(pod.Spec.NodeName) {
 		return nil
@@ -337,10 +344,12 @@ func (oc *Controller) addLogicalPort(pod *kapi.Pod) (err error) {
 	}()
 
 	logicalSwitch := pod.Spec.NodeName
+	waitForNodeLogicalSwitchTime := time.Now()
 	ls, err := oc.waitForNodeLogicalSwitch(logicalSwitch)
 	if err != nil {
 		return err
 	}
+	durationMap["waitForNodeLogicalSwitch"] = time.Since(waitForNodeLogicalSwitchTime)
 
 	portName := util.GetLogicalPortName(pod.Namespace, pod.Name)
 	klog.Infof("[%s/%s] creating logical port for pod on switch %s", pod.Namespace, pod.Name, logicalSwitch)
@@ -360,7 +369,9 @@ func (oc *Controller) addLogicalPort(pod *kapi.Pod) (err error) {
 	// UUID and and the port cache, address sets, and port groups
 	// will still have the old UUID.
 	getLSP := &nbdb.LogicalSwitchPort{Name: portName}
+	getLogicalSwitchPortTime := time.Now()
 	err = oc.nbClient.Get(ctx, getLSP)
+	durationMap["getLogicalSwitchPort"] = time.Since(getLogicalSwitchPortTime)
 	if err != nil && err != libovsdbclient.ErrNotFound {
 		return fmt.Errorf("unable to get the lsp: %s from the nbdb: %s", portName, err)
 	}
@@ -393,7 +404,9 @@ func (oc *Controller) addLogicalPort(pod *kapi.Pod) (err error) {
 	// rescheduled.
 	lsp.Options["requested-chassis"] = pod.Spec.NodeName
 
+	UnmarshalPodAnnotationTime := time.Now()
 	annotation, err := util.UnmarshalPodAnnotation(pod.Annotations)
+	durationMap["UnmarshalPodAnnotation"] = time.Since(UnmarshalPodAnnotationTime)
 
 	// the IPs we allocate in this function need to be released back to the
 	// IPAM pool if there is some error in any step of addLogicalPort past
@@ -414,6 +427,7 @@ func (oc *Controller) addLogicalPort(pod *kapi.Pod) (err error) {
 		}
 	}()
 
+	AllocateAndMarshallIPsTime := time.Now()
 	if err == nil {
 		podMac = annotation.MAC
 		podIfAddrs = annotation.IPs
@@ -462,7 +476,9 @@ func (oc *Controller) addLogicalPort(pod *kapi.Pod) (err error) {
 	}
 
 	// Ensure the namespace/nsInfo exists
+	addPodToNamespaceTime := time.Now()
 	routingExternalGWs, routingPodGWs, hybridOverlayExternalGW, ops, err := oc.addPodToNamespace(pod.Namespace, podIfAddrs)
+	durationMap["addPodToNamespaceTime"] = time.Since(addPodToNamespaceTime)
 	if err != nil {
 		return err
 	}
@@ -504,12 +520,14 @@ func (oc *Controller) addLogicalPort(pod *kapi.Pod) (err error) {
 		if err != nil {
 			return fmt.Errorf("error creating pod network annotation: %v", err)
 		}
+		durationMap["AllocateAndMarshallIPsTime"] = time.Since(AllocateAndMarshallIPsTime)
 
 		klog.V(5).Infof("Annotation values: ip=%v ; mac=%s ; gw=%s\nAnnotation=%s",
 			podIfAddrs, podMac, podAnnotation.Gateways, marshalledAnnotation)
 		annoStart := time.Now()
 		err = oc.kube.SetAnnotationsOnPod(pod.Namespace, pod.Name, marshalledAnnotation)
 		podAnnoTime = time.Since(annoStart)
+		durationMap["SetAnnotationsOnPod"] = podAnnoTime
 		if err != nil {
 			return fmt.Errorf("failed to set annotation on pod %s: %v", pod.Name, err)
 		}
@@ -612,6 +630,7 @@ func (oc *Controller) addLogicalPort(pod *kapi.Pod) (err error) {
 	transactStart := time.Now()
 	results, err := libovsdbops.TransactAndCheckAndSetUUIDs(oc.nbClient, lsp, allOps)
 	libovsdbExecuteTime = time.Since(transactStart)
+	durationMap["TransactAndCheckAndSetUUIDs"] = libovsdbExecuteTime
 	if err != nil {
 
 		return fmt.Errorf("could not perform creation or update of logical switch port %s - %+v", portName, err)
